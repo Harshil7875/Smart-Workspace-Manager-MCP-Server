@@ -58,7 +58,7 @@ Built for macOS (Silicon) developers, it bridges your private filesystem with La
 
 ```bash
 # Clone the repository
-git clone https://github.com/Harshil7875/smart-workspace-manager-mcp-server.git
+git clone https://github.com/Harshil7875/Smart-Workspace-Manager-MCP-Server.git
 cd smart-workspace-manager
 
 # Create a virtual environment
