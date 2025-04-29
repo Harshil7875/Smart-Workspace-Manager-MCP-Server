@@ -180,13 +180,210 @@ Settings include:
 - **Auto-organization**: Suggest folder structures for messy files.
 - **Multimodal resources**: Add image, audio file support.
 - **Remote access**: Optionally expose workspace to remote clients securely.
+ 
+<br>
+
+# 🏛️ Full Technical Architecture
 
 ---
 
-# **Summary**
+# 1. 🏗️ High-Level Overview
 
-**Smart Workspace Manager** is a modular, secure, AI-powered personal workspace manager built on the open Model Context Protocol standard.
+At a very high level, your Smart Workspace Manager MCP server is:
 
-It aims to bring AI closer to your daily workflows — securely, locally, and flexibly — without needing to reinvent the wheel every time you want your LLM to *"see"* your files.
+- A **TypeScript** application
+- That implements **MCP Server APIs**
+- Exposing **Resources** (filesystem, notes db) and **Tools** (workspace actions)
+- Using **stdio** for local dev / Desktop client connection
+- Following strict modular separation: **core**, **features**, **adapters**, **utils**
+
+---
+
+# 2. 🛠️ Core Module Structure
+
+### `/src`
+| Module | Purpose |
+|--|--|
+| `/core` | MCP Server bootstrapping, transports, session handling |
+| `/resources` | All MCP resource handlers (Filesystem, Database) |
+| `/tools` | All MCP tool handlers (search, summarize, classify) |
+| `/adapters` | Platform-specific code (filesystem adapter, db adapter) |
+| `/config` | Config loaders (dotenv, JSON config, dynamic roots) |
+| `/schemas` | JSON schemas for all requests/validations |
+| `/utils` | Utility helpers (logging, error handling, common patterns) |
+| `/types` | Global shared TypeScript types and interfaces |
+| `/tests` | Unit and integration tests (Jest or Vitest) |
+
+---
+
+# 3. 🔩 Detailed Module Descriptions
+
+## 3.1. `/core`
+- **Server.ts**: Initialize MCP server instance
+- **TransportManager.ts**: Setup and manage stdio transport
+- **SessionManager.ts**: Handle server state, incoming/outgoing MCP messages
+- **InitializationHandler.ts**: Implement initial protocol handshake
+- **ErrorBoundary.ts**: Catch uncaught promise rejections / unexpected errors
+
+✅ _This is the "engine" that keeps the server alive and compliant._
+
+---
+
+## 3.2. `/resources`
+- **FilesystemResource.ts**: 
+  - Lists files/directories as MCP resources
+  - Reads text/binary contents
+  - Watches for filesystem changes
+- **NotesResource.ts**:
+  - Lists notes stored in a lightweight JSON "database"
+  - CRUD operations on notes
+- **ResourceManager.ts**:
+  - Central manager that routes resource URIs to correct handlers
+
+✅ _This is how your Smart Workspace Manager "sees" the user's world._
+
+---
+
+## 3.3. `/tools`
+- **FileSearchTool.ts**:
+  - Search filesystem with text queries
+- **CreateNoteTool.ts**:
+  - Create new entries in the notes DB
+- **SummarizeDirectoryTool.ts**:
+  - Compute stats for a folder (count, size, modified dates)
+- **FindLargeFilesTool.ts**:
+  - Find largest files under Roots
+- **ClassifyFilesTool.ts**:
+  - Classify files by MIME type
+- **ToolManager.ts**:
+  - Central dispatcher for tool requests
+
+✅ _This is how your Workspace Manager "acts" on behalf of the user._
+
+---
+
+## 3.4. `/adapters`
+- **FilesystemAdapter.ts**:
+  - Use `fs/promises`, `path`, and `chokidar` for filesystem access
+- **DatabaseAdapter.ts**:
+  - Read/write lightweight JSON flat-file database
+- **SubscriptionManager.ts**:
+  - Manage real-time change events (optional in v1)
+
+✅ _Adapters isolate dirty platform-specific details._
+
+---
+
+## 3.5. `/config`
+- **ConfigLoader.ts**:
+  - Read `smart-workspace.config.json`
+  - Load environment variables
+- **DynamicRoots.ts**:
+  - Manage root URIs dynamically at runtime
+
+✅ _Configurable for real world usage, not hardcoded._
+
+---
+
+## 3.6. `/schemas`
+- JSON Schemas for:
+  - Tool input validation
+  - Resource URI validation
+  - Dynamic error formatting
+- Follows **MCP spec compliance**
+
+✅ _Strictly validate everything at runtime._
+
+---
+
+## 3.7. `/utils`
+- **Logger.ts**:
+  - Pretty terminal logging
+  - Severity levels (info, warn, error)
+- **ErrorHandler.ts**:
+  - Standardized errors thrown across server
+- **ProgressReporter.ts**:
+  - Manage progress token updates during long tool runs
+
+✅ _Shared utilities that make the codebase clean._
+
+---
+
+## 3.8. `/types`
+- **global.d.ts**:
+  - Custom types for config, errors, server state
+- **ResourceTypes.ts**:
+  - Unified types for all Resource handlers
+- **ToolTypes.ts**:
+  - Types for MCP Tool definitions
+
+✅ _Everything type-safe, zero magic numbers._
+
+---
+
+# 4. ⚙️ Core Server Lifecycle
+
+1. Server boots
+2. Loads config
+3. Creates Transport (stdio)
+4. Initializes MCP Server
+5. Negotiates Capabilities with client
+6. Registers:
+   - All Resources
+   - All Tools
+7. Waits for Requests / Notifications
+8. Processes:
+   - Resource requests
+   - Tool invocations
+   - Subscriptions
+9. Logs operations
+10. Handles graceful shutdown
+
+✅ _Built to MCP **spec 100%**, designed for resilience._
+
+---
+
+# 5. 🔥 Future Extensions (Design for Scalability)
+
+- Add **SSE HTTP** transport easily
+- Add new resource backends (e.g., Dropbox, S3) under `/adapters`
+- Add user authentication (OAuth2 flows if needed)
+- Move database to SQLite for scale
+- Multi-root, multi-user support
+- Export server as a **native macOS app** bundle
+
+---
+
+# 🖼️ Visual Logical Architecture (Text Diagram)
+
+```
+ ┌─────────────────────────────────────────────┐
+ │                 MCP Client                   │
+ │     (Claude Desktop, Cursor IDE, etc.)        │
+ └─────────────────────────────────────────────┘
+                ⇅ JSON-RPC over stdio
+ ┌─────────────────────────────────────────────┐
+ │             Smart Workspace Manager          │
+ │          (Your MCP Server - TypeScript)       │
+ │-----------------------------------------------│
+ │ /core                                         │
+ │   └── TransportManager                        │
+ │   └── SessionManager                           │
+ │   └── Server.ts (Entry)                        │
+ │ /resources                                    │
+ │   └── FilesystemResource                      │
+ │   └── NotesResource                           │
+ │ /tools                                        │
+ │   └── FileSearchTool                          │
+ │   └── CreateNoteTool                          │
+ │ /adapters                                     │
+ │   └── FilesystemAdapter                       │
+ │   └── DatabaseAdapter                         │
+ │ /schemas                                      │
+ │ /config                                       │
+ │ /utils                                        │
+ │ /types                                        │
+ └─────────────────────────────────────────────┘
+```
 
 ---
